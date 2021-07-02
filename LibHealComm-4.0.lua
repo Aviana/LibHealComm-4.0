@@ -1,7 +1,7 @@
 if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then return end
 
 local major = "LibHealComm-4.0"
-local minor = 94
+local minor = 95
 assert(LibStub, format("%s requires LibStub.", major))
 
 local HealComm = LibStub:NewLibrary(major, minor)
@@ -2345,7 +2345,7 @@ function HealComm:UNIT_SPELLCAST_START(unit, cast, spellID)
 
 	local castGUID = castGUIDs[spellID]
 	local castUnit = guidToUnit[castGUID]
-	if isTBC and not castUnit and spellID == 32546 and castGUID == UnitGUID("target") then
+	if isTBC and not castUnit and spellID == 32546 and castGUID == UnitGUID("target") then -- Binding Heal
 		castGUID = UnitGUID("player")
 		castUnit = "player"
 	end
@@ -2372,6 +2372,16 @@ end
 HealComm.UNIT_SPELLCAST_CHANNEL_START = HealComm.UNIT_SPELLCAST_START
 
 local spellCastSucceeded = {}
+local function hasNS()
+	local i=1
+	repeat
+		local spellID = select(10, UnitBuff("player", i))
+		if spellID == 17116 or spellID == 16188 then
+			return true
+		end
+		i = i + 1
+	until not spellID
+end
 
 function HealComm:UNIT_SPELLCAST_SUCCEEDED(unit, cast, spellID)
 	if( unit ~= "player") then return end
@@ -2381,12 +2391,12 @@ function HealComm:UNIT_SPELLCAST_SUCCEEDED(unit, cast, spellID)
 		hasDivineFavor = true
 	end
 
-	if spellData[spellName] and not spellData[spellName]._isChanneled then
+	if spellData[spellName] and not spellData[spellName]._isChanneled and not hasNS() then
 		hasDivineFavor = nil
 		parseHealEnd(playerGUID, nil, "name", spellID, false)
 		sendMessage(format("S::%d:0", spellID or 0))
 		spellCastSucceeded[spellID] = true
-	elseif spellID == 20473 or spellID == 20929 or spellID == 20930 then -- Holy Shock
+	elseif spellName == GetSpellInfo(20473) then -- Holy Shock
 		hasDivineFavor = nil
 	end
 end
@@ -2632,6 +2642,8 @@ function HealComm:UNIT_PET(unit)
 	if activeGUID and activeGUID ~= petGUID then
 		removeAllRecords(activeGUID)
 
+		rawset(self.compressGUID, activeGUID, nil)
+		rawset(self.decompressGUID, "p-"..strsub(UnitGUID(unit),8), nil)
 		guidToUnit[activeGUID] = nil
 		guidToGroup[activeGUID] = nil
 		activePets[unit] = nil
